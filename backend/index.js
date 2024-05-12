@@ -22,8 +22,30 @@ app.get('/audio', async (req, res) => {
 
   res.sendFile(process.env.audio_path + req.query.f + ".mp3")
 });
+app.post("/mixer", async (req, res) => {
+  let mixer = req.body
+  await save_mixer(mixer)
+  res.send("saved")
+})
 
+app.get("/mixer", async (req, res) => {
+  let mixer = await load_mixer()
+  //console.log("mixer", mixer)
+  res.send(mixer)
+})
+async function load_mixer() {
+  try {
+    let mixer = await fs.readFile("mixer.json")
+    mixer = JSON.parse(mixer)
+    return mixer
+  } catch (e) {
+    return {}
+  }
+}
+async function save_mixer(mixer) {
+  await fs.writeFile("mixer.json", JSON.stringify(mixer))
 
+}
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

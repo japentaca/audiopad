@@ -22,28 +22,28 @@ app.get('/audio', async (req, res) => {
 
   res.sendFile(process.env.audio_path + req.query.f + ".mp3")
 });
-app.post("/mixer", async (req, res) => {
-  let mixer = req.body
-  await save_mixer(mixer)
+app.post("/settings", async (req, res) => {
+  let settings = req.body
+  await save_settings(settings)
   res.send("saved")
 })
 
-app.get("/mixer", async (req, res) => {
-  let mixer = await load_mixer()
-  //console.log("mixer", mixer)
-  res.send(mixer)
+app.get("/settings", async (req, res) => {
+  let settings = await load_settings()
+  //console.log("settings", settings)
+  res.send(settings)
 })
-async function load_mixer() {
+async function load_settings() {
   try {
-    let mixer = await fs.readFile("mixer.json")
-    mixer = JSON.parse(mixer)
-    return mixer
+    let settings = await fs.readFile("settings.json")
+    settings = JSON.parse(settings)
+    return settings
   } catch (e) {
     return {}
   }
 }
-async function save_mixer(mixer) {
-  await fs.writeFile("mixer.json", JSON.stringify(mixer))
+async function save_settings(settings) {
+  await fs.writeFile("settings.json", JSON.stringify(settings))
 
 }
 // Start the server

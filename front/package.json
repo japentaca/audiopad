@@ -12,6 +12,7 @@
   "dependencies": {
     "@vueuse/components": "^10.9.0",
     "@vueuse/core": "^10.9.0",
+    "tone": "^15.0.2",
     "vue": "^3.4.27"
   },
   "devDependencies": {

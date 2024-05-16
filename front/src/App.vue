@@ -5,55 +5,64 @@
         v-bind:style="{ 'background-color': fade_mode ? 'pink' : 'lightblue' }">
         FADE
       </div>
-      <div @mouseup="mixer_mode = !mixer_mode" class=" top-button"
-        v-bind:style="{ 'background-color': mixer_mode ? 'pink' : 'lightblue' }">
-        MIXER
+      <div @mouseup="settings_mode = !settings_mode" class=" top-button"
+        v-bind:style="{ 'background-color': settings_mode ? 'pink' : 'lightblue' }">
+        settings
+      </div>
+      <div @mouseup="modal_props_visible = true" class=" top-button">
+        ODAL
       </div>
 
     </div>
 
-    <div class="container" :style="{ 'overflow-y': mixer_mode ? 'hidden' : 'auto' }">
+    <div class="container" :style="{ 'overflow-y': settings_mode ? 'hidden' : 'auto' }">
 
       <div v-for="elem in elems" :key="elem.id">
-        <div class="button_wrapper">
-          <div @touchstart="on_element_touched($event, elem)" @touchmove="on_element_swiped($event, elem)" class="box"
-            :class="[elem.playing ? 'playing' : 'stopped']">
+        <div @touchstart="on_element_touched($event, elem)" class="button_wrapper">
+          <div class="box" :class="[elem.playing ? 'playing' : 'stopped']">
             <div class="fixed_font" style="height: 30px;"> {{ elem.name }}</div>
+
             <p></p>
-            <div style="background-color: brown; height: 12px;  color: black;"
+
+            <div @touchstart="on_element_touched($event, elem)" style="width: 40px;height: 40px;"
+              :class="elem.playing ? 'mdi--pause' : 'mdi--play'">
+            </div>
+            <div @touchstart="stop_audio($event, elem)" style="width: 40px;height: 40px;" class="mdi--stop">
+            </div>
+            <div style="background-color: red; height: 12px;  opacity: .5; color: black;"
               :style="{ 'width': elem.percent_played + '%' }"> </div>
-            <p></p>
-            <div class="fixed_font"> V:{{ mixer[elem.id].volumen.toFixed(2) }}</div>
+
           </div>
           <div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
+
+  <modalSlider ref="modal_props_ref" :isOpen="modal_props_visible" @modal-close="modal_props_visible = false" />
 
 </template>
 <script setup>
 import { ref, onMounted, reactive, watch } from 'vue'
 import { useFetch } from '@vueuse/core'
-
+import modalSlider from './components/modal-audio-props.vue'
+const modal_props_visible = ref(false)
+const modal_props_ref = ref(null)
+import * as Tone from "tone"
 
 const elems = ref([])
 const fade_mode = ref(false)
-const mixer_mode = ref(false)
+const settings_mode = ref(false)
 const template = ref(null)
-let touch_last_y = 0
 
-
-let mixer = {}
-watch(mixer_mode, () => {
-  console.log("mixer_mode", mixer_mode.value)
+let settings = {}
+watch(settings_mode, () => {
+  console.log("settings_mode", settings_mode.value)
 })
 watch(fade_mode, () => {
   console.log("fade_mode", fade_mode.value)
-})
-
+}, { deep: true })
 setInterval(async () => {
   elems.value.map(elem => {
     if (elem.loaded) {
@@ -66,73 +75,45 @@ setInterval(async () => {
     }
   })
 }, 100)
-async function on_element_touched(event, elem) {
-  //event.preventDefault()
-  if (!mixer_mode.value) {
+watch(modal_props_visible, async (newValue, oldValue) => {
+  console.log("modal_props_visible", newValue)
+  if (newValue === false) {
+    await save_settings()
+  }
+})
 
-    if (!elem.playing) {
+watch(elems, (newValue, oldValue) => {
+  console.log("elems", newValue)
+})
+async function stop_audio(event, elem) {
+  if (settings_mode.value) return
+  elem.audio.pause()
+  elem.audio.currentTime = 0
+}
+let toneStarted = false
+async function on_element_touched(event, elem) {
+  if (!toneStarted) Tone.start()
+  //event.preventDefault()
+  if (settings_mode.value) {
+    modal_props_ref.value.elem = elem
+    modal_props_visible.value = true
+  } else {
+    if (elem.playing) {
+      elem.audio.pause()
+    } else {
       elem.audio.play()
     }
-    else {
-      elem.audio.pause()
-      elem.audio.currentTime = 0
-    }
-  }
-  else {
-    console.log("template", window.innerHeight, window.outerHeight)
-    touch_last_y = event.touches[0].pageY.toFixed()
-    console.log("touch start", event.touches[0].pageY.toFixed(2), event.target.offsetTop, event.target.offsetHeight)
-  }
-}
-let last_swipe_evt = Date.now()
-async function on_element_swiped(event, elem) {
-  //event.preventDefault()
-  if (!mixer_mode.value) return
-
-  if (Date.now() - last_swipe_evt < 20) return
-  last_swipe_evt = Date.now()
-
-  let direction = touch_last_y > event.touches[0].pageY ? Number(0.02) : Number(-0.02)
-  console.log("dir", direction)
-  touch_last_y = event.touches[0].pageY
-
-  console.log("vol prev", mixer[elem.id].volumen)
-  mixer[elem.id].volumen = Number(mixer[elem.id].volumen + direction)
-  console.log("vol post", mixer[elem.id].volumen)
-  if (mixer[elem.id].volumen > 1) mixer[elem.id].volumen = 1
-  if (mixer[elem.id].volumen < 0) mixer[elem.id].volumen = 0
-  elem.audio.volume = mixer[elem.id].volumen
-  //await save_mixer()
-  //console.log(event.touches[0])
-  //if (pos < 0 || pos > event.target.offsetHeight) return
-  //console.log(event.touches[0].clientY.toFixed(2), event.target.offsetTop, event.target.offsetHeight, pos)
-  //console.log(event.touches[0].pageY, touch_start_y, event.touches[0].pageY - touch_start_y)
-  //console.log(pos, volumen)
-  //let volumen = convertRange(pos, [0, event.target.offsetHeight], [0, 1])
-  //elem.audio.volume = convertRange(pos, [0, event.target.offsetHeight], [0, 1])
-  //console.log(volumen)
-  //console.log(pos.toFixed(2), event.target.offsetParent.offsetHeight)
-
-}
-async function element_clicked(elem) {
-  if (mixer_mode.value) return
-  console.log("clicked", elem.name)
-  if (!elem.playing) {
-    elem.audio.play()
-  }
-  else {
-    elem.audio.pause()
-    elem.audio.currentTime = 0
   }
 }
 
 onMounted(async () => {
-  let mixer_data = await useFetch(import.meta.env.VITE_BACKEND_URL + '/mixer').json()
-  //console.log("mixer_data", mixer_data.data.value)
+  let settings_data = await useFetch(import.meta.env.VITE_BACKEND_URL + '/settings').json()
 
-  mixer = mixer_data.data.value
 
+  settings = settings_data.data.value
+  let dirty_settings = false
   let files = await traer_archivos()
+  //console.log("files", files)
   files.map(f => {
     let elem = {
       id: f,
@@ -146,10 +127,12 @@ onMounted(async () => {
       percent_played: Number(0),
       duration: 0,
     }
-    elems.value.push(elem)
-    if (!mixer[elem.id]) {
-      console.log("seteo mixer", elem.name)
-      mixer[elem.id] = { volumen: .7 }
+    //console.log(elem)
+
+    if (!settings[elem.id]) {
+      console.log("seteo settings", elem.name)
+      dirty_settings = true
+      settings[elem.id] = { volumen: .7 }
     }
     elem.audio.addEventListener('canplaythrough', () => {
       elem.loaded = true
@@ -169,25 +152,26 @@ onMounted(async () => {
     elem.audio.addEventListener('pause', (e) => {
       elem.playing = false
       elem.percent_played = Number(1)
-      elem.audio.currentTime = 0
+
       console.log("paused", elem.name)
     })
     elem.audio.addEventListener('timeupdate', (e) => {
-
-
-
-
     })
 
-
-    elem.audio.volume = mixer[elem.id].volumen
+    if (settings[elem.id]["loop"] == undefined) settings[elem.id]["loop"] = false
+    if (settings[elem.id]["fadein"] == undefined) settings[elem.id]["fadein"] = 0
+    if (settings[elem.id]["fadeout"] == undefined) settings[elem.id]["fadeout"] = 0
+    elem.audio.volume = settings[elem.id].volumen
+    elem.settings = settings[elem.id]
+    //console.log("settings", elem.id, settings[elem.id].volumen)
+    elems.value.push(elem)
 
   })
-  await save_mixer()
+  if (dirty_settings) await save_settings()
 
 })
-async function save_mixer() {
-  const { data } = await useFetch(import.meta.env.VITE_BACKEND_URL + '/mixer').post(mixer)
+async function save_settings() {
+  const { data } = await useFetch(import.meta.env.VITE_BACKEND_URL + '/settings').post(settings)
 }
 const traer_archivos = async () => {
   const { data } = await useFetch(import.meta.env.VITE_BACKEND_URL + '/get_files').json()
@@ -201,6 +185,62 @@ console.log(convertRange(50, [0, 99], [0, 1]))
 </script>
 
 <style scoped>
+.mdi--stop {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M18 18H6V6h12z'/%3E%3C/svg%3E");
+  background-color: currentColor;
+  -webkit-mask-image: var(--svg);
+  mask-image: var(--svg);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+@keyframes scaleIn {
+  from {
+
+    opacity: .5;
+  }
+
+  to {
+
+    opacity: 0;
+  }
+}
+
+.mdi--play {
+
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M8 5.14v14l11-7z'/%3E%3C/svg%3E");
+  background-color: currentColor;
+  -webkit-mask-image: var(--svg);
+  mask-image: var(--svg);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.mdi--pause {
+
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M14 19h4V5h-4M6 19h4V5H6z'/%3E%3C/svg%3E");
+  background-color: currentColor;
+  -webkit-mask-image: var(--svg);
+  mask-image: var(--svg);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
 .main {
   overflow-y: hidden;
 }
@@ -252,7 +292,7 @@ console.log(convertRange(50, [0, 99], [0, 1]))
 .box {
   user-select: none;
   box-shadow: 6px 6px 2px 1px rgba(0, 0, 255, .2);
-  margin: 2px;
+  margin: 6px;
   flex: 0 0 25%;
   overflow-wrap: break-word;
 
@@ -264,11 +304,11 @@ console.log(convertRange(50, [0, 99], [0, 1]))
   /* Adjust the height as needed */
   /*box-sizing: border-box;
   /* Include padding and border in the box's size */
-  padding: 10px;
+  padding: 5px;
   /* Adjust the padding as needed */
-  border: 1px solid #ccc;
+  border: 1px solid #1e0303;
   /* Add a border for visual separation of boxes */
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   /* Optional space between rows */
 }
 
